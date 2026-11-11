@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Program Skills and Priorities | WRI India</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+  :root {
+    --canvas: #f2f4f7;
+    --surface: #ffffff;
+    --ink: #1d2733;
+    --ink-2: #566170;
+    --ink-3: #8a94a3;
+    --line: #dde1e7;
+    --line-soft: #eceff3;
+    --hover: #f6f8fa;
+    --select: #e8f0fb;
+    --accent: #1c5cab;
+    --bar: #2a78d6;
+    --bar-dim: #b7d3f6;
+    --other-team: #7d8794;
+    --institutional: #cfd5dc;
+    --mark: #fff2b8;
+    --radius: 4px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'IBM Plex Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--ink);
+    background: var(--canvas);
+    font-variant-numeric: tabular-nums;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* Header */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    height: 52px; display: flex; align-items: stretch; gap: 32px;
+    padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; flex-direction: column; justify-content: center; }
+  .brand strong { font-size: 15px; font-weight: 600; }
+  .brand span { font-size: 12px; color: var(--ink-2); }
+  .views { display: flex; align-items: stretch; gap: 4px; }
+  .view-btn {
+    padding: 0 14px; font-weight: 500; color: var(--ink-2);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .view-btn:hover { color: var(--ink); }
+  .view-btn[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
+  .status-dot.live { background: #0ca30c; }
+  .status-dot.err { background: #d03b3b; }
+
+  /* Layout */
+  .layout { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: calc(100vh - 52px); }
+  .filters {
+    background: var(--surface); border-right: 1px solid var(--line);
+    padding: 16px; position: sticky; top: 52px; height: calc(100vh - 52px); overflow-y: auto;
+  }
+  .content { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+  /* Filter panel */
+  .f-group { padding: 12px 0; border-top: 1px solid var(--line-soft); }
+  .f-group:first-child { border-top: 0; padding-top: 0; }
+  .f-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .f-title { font-weight: 600; font-size: 12.5px; }
+  .f-reset { font-size: 12px; color: var(--accent); }
+  .f-reset[hidden] { display: none; }
+  .search {
+    width: 100%; height: 32px; padding: 0 10px; font: inherit;
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+  }
+  .search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--select); }
+  .f-hint { font-size: 11.5px; color: var(--ink-3); margin-top: 5px; }
+  .check {
+    display: grid; grid-template-columns: 16px 10px 1fr auto; align-items: center; gap: 7px;
+    padding: 3px 4px; margin: 0 -4px; border-radius: 3px; cursor: pointer; user-select: none;
+  }
+  .check:hover { background: var(--hover); }
+  .check input { width: 13px; height: 13px; accent-color: var(--accent); margin: 0; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .check .n { color: var(--ink-3); font-size: 12px; }
+  .check.zero { color: var(--ink-3); }
+  .more-btn { font-size: 12px; color: var(--accent); margin-top: 4px; }
+
+  /* Panels */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line-soft);
+  }
+  .panel-title { font-size: 13.5px; font-weight: 600; }
+  .panel-sub { font-size: 12px; color: var(--ink-2); }
+  .panel-body { padding: 12px 14px; }
+
+  /* KPI strip */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .kpi { padding: 12px 16px; border-left: 1px solid var(--line-soft); }
+  .kpi:first-child { border-left: 0; }
+  .kpi-value { font-size: 22px; font-weight: 600; line-height: 1.2; }
+  .kpi-value small { font-size: 13px; font-weight: 400; color: var(--ink-3); }
+  .kpi-label { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+
+  /* Active filters */
+  .active { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+  .active[hidden] { display: none; }
+  .active-label { color: var(--ink-2); margin-right: 2px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 4px 0 9px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  }
+  .chip button { width: 18px; height: 18px; border-radius: 50%; color: var(--ink-2); line-height: 1; }
+  .chip button:hover { background: var(--hover); color: var(--ink); }
+  .clear-all { color: var(--accent); margin-left: 4px; }
+
+  /* Charts */
+  .charts { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; align-items: start; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .seg button { padding: 3px 9px; font-size: 12px; color: var(--ink-2); border-left: 1px solid var(--line); }
+  .seg button:first-child { border-left: 0; }
+  .seg button[aria-pressed="true"] { background: var(--select); color: var(--accent); font-weight: 500; }
+  .bars { display: flex; flex-direction: column; gap: 2px; }
+  .bar-row {
+    display: grid; grid-template-columns: minmax(120px, 42%) 1fr; align-items: center; gap: 10px;
+    padding: 3px 4px; margin: 0 -4px; border-radius: 3px; text-align: left; width: calc(100% + 8px);
+  }
+  .bar-row:hover { background: var(--hover); }
+  .bar-row.on { background: var(--select); }
+  .bar-row[data-static] { cursor: default; }
+  .bar-row[data-static]:hover { background: none; }
+  .bar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+  .bar-track { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .bar-fill { height: 12px; border-radius: 0 4px 4px 0; min-width: 2px; flex: none; }
+  .bar-val { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+  .chart-note { font-size: 11.5px; color: var(--ink-3); margin-top: 8px; }
+  .chart-empty { color: var(--ink-3); padding: 12px 0; }
+
+  /* Table */
+  .table-tools { display: flex; align-items: center; gap: 12px; }
+  .tool-btn {
+    height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius);
+    font-size: 12px; color: var(--ink);
+  }
+  .tool-btn:hover { background: var(--hover); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    position: sticky; top: 0; background: #f8f9fb; text-align: left; font-weight: 600; font-size: 12px;
+    color: var(--ink-2); padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  th button { font-weight: 600; color: var(--ink-2); display: inline-flex; gap: 4px; align-items: center; }
+  th button:hover { color: var(--ink); }
+  th .arrow { font-size: 10px; color: var(--accent); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover td { background: var(--hover); }
+  tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .name-cell { font-weight: 500; white-space: nowrap; }
+  .area-cell { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+  .muted { color: var(--ink-3); }
+  .plus { color: var(--ink-3); white-space: nowrap; }
+  mark { background: var(--mark); color: inherit; border-radius: 2px; padding: 0 1px; }
+  .stack { display: flex; gap: 2px; height: 12px; width: 180px; }
+  .stack span { display: block; height: 100%; }
+  .stack span:first-child { border-radius: 2px 0 0 2px; }
+  .stack span:last-child { border-radius: 0 4px 4px 0; }
+  .stack-caption { font-size: 11.5px; color: var(--ink-2); margin-top: 4px; white-space: nowrap; }
+  .prio-list { list-style: none; }
+  .prio-list li { padding-left: 12px; position: relative; }
+  .prio-list li::before { content: ''; position: absolute; left: 2px; top: 8px; width: 4px; height: 4px; border-radius: 50%; background: var(--ink-3); }
+  .table-foot { padding: 8px 14px; font-size: 12px; color: var(--ink-2); }
+  .empty { padding: 36px 16px; text-align: center; color: var(--ink-2); }
+  .empty strong { display: block; color: var(--ink); font-size: 14px; margin-bottom: 4px; }
+
+  /* Detail drawer */
+  .scrim { position: fixed; inset: 0; background: rgba(29, 39, 51, 0.28); z-index: 40; opacity: 0; pointer-events: none; transition: opacity 160ms; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100vw); z-index: 50;
+    background: var(--surface); border-left: 1px solid var(--line);
+    transform: translateX(100%); transition: transform 180ms ease-out;
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: none; }
+  .drawer-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--line-soft); display: flex; gap: 12px; align-items: flex-start; }
+  .drawer-head h2 { font-size: 18px; font-weight: 600; line-height: 1.25; }
+  .drawer-head .meta { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .close-btn { margin-left: auto; width: 30px; height: 30px; border-radius: var(--radius); font-size: 18px; color: var(--ink-2); flex: none; }
+  .close-btn:hover { background: var(--hover); color: var(--ink); }
+  .drawer-body { padding: 4px 18px 24px; overflow-y: auto; }
+  .d-sec { padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+  .d-sec:last-child { border-bottom: 0; }
+  .d-title { font-weight: 600; margin-bottom: 8px; }
+  .d-sec .stack { width: 100%; height: 14px; margin-bottom: 10px; }
+  .alloc-list { display: grid; grid-template-columns: 10px 1fr auto; gap: 4px 8px; align-items: center; }
+  .alloc-list .pct { color: var(--ink-2); }
+  .d-sec .prio-list li { padding-top: 2px; padding-bottom: 2px; }
+  .d-sec .prio-list li::before { top: 10px; }
+  .skill-group { margin-bottom: 10px; }
+  .skill-group:last-child { margin-bottom: 0; }
+  .skill-group h4 { font-size: 12px; font-weight: 500; color: var(--ink-2); margin-bottom: 4px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag { padding: 2px 7px; border: 1px solid var(--line); border-radius: 3px; font-size: 12px; background: #fafbfc; }
+  .tag-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Tooltip */
+  .tip {
+    position: fixed; z-index: 60; pointer-events: none; max-width: 260px;
+    background: var(--ink); color: #fff; font-size: 12px; padding: 6px 9px; border-radius: 3px;
+    opacity: 0; transition: opacity 80ms;
+  }
+  .tip.show { opacity: 1; }
+
+  @media (max-width: 1080px) {
+    .charts { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 820px) {
+    .topbar { height: auto; flex-wrap: wrap; gap: 0 16px; padding: 8px 14px 0; }
+    .views { order: 3; width: 100%; height: 40px; }
+    .layout { grid-template-columns: 1fr; }
+    .filters { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+    .content { padding: 12px; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .kpi:nth-child(3) { border-left: 0; }
+    .kpi:nth-child(n+3) { border-top: 1px solid var(--line-soft); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .drawer, .scrim, .tip { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <strong>Energy Program skills and priorities</strong>
+    <span>WRI India</span>
+  </div>
+  <nav class="views" role="tablist" aria-label="Dashboard views">
+    <button class="view-btn" role="tab" data-view="skills" aria-selected="true">Skills directory</button>
+    <button class="view-btn" role="tab" data-view="priorities" aria-selected="false">Priorities and time</button>
+  </nav>
+  <div class="status" aria-live="polite"><span class="status-dot" id="statusDot"></span><span id="statusText">Loading data</span></div>
+</header>
+
+<div class="layout">
+  <aside class="filters" aria-label="Filters">
+    <div class="f-group">
+      <div class="f-head"><span class="f-title">Search</span></div>
+      <input class="search" id="search" type="search" placeholder="Name, skill or priority" autocomplete="off">
+      <p class="f-hint">Use spaces for more than one word. "solar policy" finds people who match both.</p>
+    </div>
+    <div class="f-group">
+      <div class="f-head"><span class="f-title">Pillar or team</span><button class="f-reset" data-reset="areas" hidden>Reset</button></div>
+      <div id="areaFilter"></div>
+    </div>
+    <div class="f-group">
+      <div class="f-head"><span class="f-title">Geographic scope</span><button class="f-reset" data-reset="scopes" hidden>Reset</button></div>
+      <div id="scopeFilter"></div>
+    </div>
+    <div class="f-group">
+      <div class="f-head"><span class="f-title">Selected skills</span><button class="f-reset" data-reset="skills" hidden>Reset</button></div>
+      <div id="skillFilter"><p class="f-hint" style="margin-top:0">Click a bar in "Most common skills" or a skill in someone's profile to add it here.</p></div>
+    </div>
+  </aside>
+
+  <main class="content">
+    <section class="panel kpis" id="kpis" aria-label="Summary"></section>
+    <div class="active" id="activeFilters" hidden></div>
+    <section class="charts" id="charts"></section>
+    <section class="panel">
+      <div class="panel-head">
+        <div><div class="panel-title" id="tableTitle">People</div><div class="panel-sub" id="tableSub"></div></div>
+        <div class="table-tools"><button class="tool-btn" id="downloadBtn">Download CSV</button></div>
+      </div>
+      <div class="table-wrap" id="tableWrap"><div class="empty">Loading team data</div></div>
+      <div class="table-foot" id="tableFoot"></div>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerName" aria-hidden="true"></aside>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+// ---------------- Firebase ----------------
+const firebaseConfig = {
+  apiKey: "AIzaSyCtcgoTYbhwf-XKsKEryAP0Boo-BnmQU7I",
+  authDomain: "wri-energy.firebaseapp.com",
+  databaseURL: "https://wri-energy-default-rtdb.firebaseio.com",
+  projectId: "wri-energy",
+  storageBucket: "wri-energy.firebasestorage.app",
+  messagingSenderId: "982494383874",
+  appId: "1:982494383874:web:6a3c59b6b8e5907ad2bc1b"
+};
+
+// ---------------- Reference lists ----------------
+const CORE = ['E4ED', 'SET', 'DEC', 'CES', 'EMC'];
+const CORE_COLOR = { E4ED: '#2a78d6', SET: '#eb6834', DEC: '#1baf7a', CES: '#eda100', EMC: '#e87ba4' };
+const AREA_ALIAS = {
+  'EPTI': 'ETPI', 'Utilitie and Tariffs': 'Utilities and Tariffs', 'DEI and Culture': 'DEI',
+  'Equity, Governance, PEA': 'Equity, Governance and PEA'
+};
+const INSTITUTIONAL = new Set(['Learning', 'DEI', 'Sustainability', 'DEI and Sustainability', 'Institutional', 'Programme Development']);
+const SCOPES = ['Pan-India', 'Sub-national', 'Global South', 'Global/International'];
+const SKILL_CATS = [
+  { key: 'domain', label: 'Domain', field: 'domainExpertise' },
+  { key: 'technology', label: 'Technology', field: 'technologies' },
+  { key: 'functional', label: 'Functional', field: 'functionalExpertise' },
+  { key: 'stakeholder', label: 'Stakeholder', field: 'stakeholderExpertise' },
+  { key: 'enabling', label: 'Enabling', field: 'enablingExpertise' }
+];
+const CAT_LABEL = Object.fromEntries(SKILL_CATS.map(c => [c.key, c.label]));
+
+function areaColor(a) {
+  if (CORE_COLOR[a]) return CORE_COLOR[a];
+  if (INSTITUTIONAL.has(a)) return 'var(--institutional)';
+  return 'var(--other-team)';
+}
+
+// ---------------- Helpers ----------------
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function hl(text, terms) {
+  let out = esc(text);
+  if (!terms.length) return out;
+  const pattern = terms.map(t => esc(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  return out.replace(new RegExp('(' + pattern + ')', 'gi'), '<mark>$1</mark>');
+}
+function cleanSkill(s) {
+  return String(s).replace(/\s+-\s+/g, '-').replace(/\s*\/\s*/g, '/').replace(/[,\s]+$/, '').replace(/\s+/g, ' ').trim();
+}
+function cleanStakeholder(s) {
+  let t = cleanSkill(s).replace(/Organizations?/g, m => m.replace('z', 's'));
+  if (t.length > 48 && t.includes('(')) t = t.split('(')[0].trim();
+  return t;
+}
+function uniq(arr) {
+  const seen = new Set(), out = [];
+  arr.forEach(x => { const k = x.toLowerCase(); if (x && !seen.has(k)) { seen.add(k); out.push(x); } });
+  return out;
+}
+function fmt(n) { return Number.isInteger(n) ? String(n) : n.toFixed(1); }
+
+// ---------------- Data model ----------------
+let people = [];
+const state = {
+  view: 'skills', q: '', areas: new Set(), scopes: new Set(), skills: new Map(),
+  skillCat: 'domain', sort: { key: 'name', dir: 1 }, showAllAreas: false, openId: null
+};
+
+function normalise(raw) {
+  return Object.entries(raw || {}).map(([id, m]) => {
+    m = m || {};
+    const skills = {};
+    SKILL_CATS.forEach(c => {
+      const clean = c.key === 'stakeholder' ? cleanStakeholder : cleanSkill;
+      skills[c.key] = uniq((m[c.field] || []).map(clean).filter(Boolean));
+    });
+    const scopes = new Set(), geoDetail = [];
+    (m.geographicExpertise || []).forEach(g => {
+      const t = cleanSkill(g), low = t.toLowerCase();
+      if (low.startsWith('pan-india') && t.length < 12) scopes.add('Pan-India');
+      else if (low.startsWith('sub-national')) {
+        scopes.add('Sub-national');
+        const inner = t.match(/\((.*)\)/);
+        if (inner) geoDetail.push(inner[1]);
+      }
+      else if (low === 'global south') scopes.add('Global South');
+      else if (low === 'global/international') scopes.add('Global/International');
+      else geoDetail.push(t);
+    });
+    const alloc = (m.timeAllocations || [])
+      .map(a => ({ area: AREA_ALIAS[String(a.category).trim()] || String(a.category).trim(), pct: Number(a.percentage) || 0 }))
+      .filter(a => a.pct > 0)
+      .sort((a, b) => b.pct - a.pct);
+    const work = alloc.filter(a => !INSTITUTIONAL.has(a.area));
+    const priorities = String(m.priorities || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+    const quals = (m.qualifications || []).filter(Boolean);
+    const p = {
+      id, name: String(m.name || 'Unnamed').trim(), email: m.email || '',
+      skills, scopes: [...scopes], geoDetail, alloc, priorities, quals,
+      mainArea: work.length ? work[0].area : '',
+      workAreas: work.map(a => a.area)
+    };
+    p.search = [p.name, p.email, ...Object.values(skills).flat(), ...p.scopes, ...geoDetail, ...priorities, ...alloc.map(a => a.area), ...quals]
+      .join(' ').toLowerCase();
+    return p;
+  });
+}
+
+function terms() { return state.q.trim().toLowerCase().split(/\s+/).filter(Boolean); }
+function skillKey(cat, skill) { return cat + '|' + skill.toLowerCase(); }
+
+function matches(p, skip) {
+  const t = terms();
+  if (t.length && !t.every(x => p.search.includes(x))) return false;
+  if (skip !== 'areas' && state.areas.size && !p.workAreas.some(a => state.areas.has(a))) return false;
+  if (skip !== 'scopes' && state.scopes.size && !p.scopes.some(s => state.scopes.has(s))) return false;
+  if (skip !== 'skills') {
+    for (const [k, v] of state.skills) {
+      if (!p.skills[v.cat].some(s => s.toLowerCase() === v.skill.toLowerCase())) return false;
+    }
+  }
+  return true;
+}
+function filtered() {
+  const list = people.filter(p => matches(p));
+  const { key, dir } = state.sort;
+  const val = p => key === 'area' ? (p.mainArea ? (CORE.includes(p.mainArea) ? CORE.indexOf(p.mainArea) : 10) + p.mainArea : 'zzz') : p.name.toLowerCase();
+  return list.sort((a, b) => (val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : a.name.localeCompare(b.name)) * dir);
+}
+
+// ---------------- Rendering: filters ----------------
+function renderFilters() {
+  // Areas: counts reflect every other active filter
+  const base = people.filter(p => matches(p, 'areas'));
+  const counts = {};
+  people.forEach(p => p.workAreas.forEach(a => { counts[a] = counts[a] || 0; }));
+  base.forEach(p => p.workAreas.forEach(a => counts[a]++));
+  const others = Object.keys(counts).filter(a => !CORE.includes(a))
+    .sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+  const visibleOthers = state.showAllAreas ? others : others.filter((a, i) => i < 5 || state.areas.has(a));
+  const areaRow = a => `
+    <label class="check ${counts[a] ? '' : 'zero'}">
+      <input type="checkbox" data-area="${esc(a)}" ${state.areas.has(a) ? 'checked' : ''}>
+      <span class="swatch" style="background:${areaColor(a)}"></span>
+      <span>${esc(a)}</span><span class="n">${counts[a] || 0}</span>
+    </label>`;
+  $('areaFilter').innerHTML = CORE.filter(a => a in counts).map(areaRow).join('') +
+    `<div style="height:6px"></div>` + visibleOthers.map(areaRow).join('') +
+    (others.length > 5 ? `<button class="more-btn" id="moreAreas">${state.showAllAreas ? 'Show fewer' : 'Show all ' + others.length + ' teams'}</button>` : '');
+
+  const sBase = people.filter(p => matches(p, 'scopes'));
+  $('scopeFilter').innerHTML = SCOPES.map(s => {
+    const n = sBase.filter(p => p.scopes.includes(s)).length;
+    return `<label class="check ${n ? '' : 'zero'}" style="grid-template-columns:16px 1fr auto">
+      <input type="checkbox" data-scope="${esc(s)}" ${state.scopes.has(s) ? 'checked' : ''}>
+      <span>${esc(s)}</span><span class="n">${n}</span></label>`;
+  }).join('');
+
+  $('skillFilter').innerHTML = state.skills.size
+    ? [...state.skills.entries()].map(([k, v]) => `
+        <label class="check" style="grid-template-columns:16px 1fr">
+          <input type="checkbox" checked data-skill="${esc(k)}">
+          <span>${esc(v.skill)} <span class="muted">(${CAT_LABEL[v.cat].toLowerCase()})</span></span>
+        </label>`).join('')
+    : `<p class="f-hint" style="margin-top:0">Click a bar in "Most common skills" or a skill in someone's profile to add it here.</p>`;
+
+  document.querySelectorAll('[data-reset]').forEach(b => { b.hidden = !state[b.dataset.reset].size; });
+}
+
+function renderActive() {
+  const chips = [];
+  if (state.q.trim()) chips.push({ label: `Search: "${state.q.trim()}"`, clear: () => { state.q = ''; $('search').value = ''; } });
+  state.areas.forEach(a => chips.push({ label: a, clear: () => state.areas.delete(a) }));
+  state.scopes.forEach(s => chips.push({ label: s, clear: () => state.scopes.delete(s) }));
+  state.skills.forEach((v, k) => chips.push({ label: v.skill, clear: () => state.skills.delete(k) }));
+  const box = $('activeFilters');
+  box.hidden = !chips.length;
+  box.innerHTML = chips.length ? `<span class="active-label">Filtered by</span>` +
+    chips.map((c, i) => `<span class="chip">${esc(c.label)}<button data-chip="${i}" aria-label="Remove ${esc(c.label)}">×</button></span>`).join('') +
+    `<button class="clear-all" id="clearAll">Clear all</button>` : '';
+  box.querySelectorAll('[data-chip]').forEach(b => b.onclick = () => { chips[+b.dataset.chip].clear(); update(); });
+  const ca = $('clearAll');
+  if (ca) ca.onclick = clearAll;
+}
+
+function clearAll() {
+  state.q = ''; $('search').value = '';
+  state.areas.clear(); state.scopes.clear(); state.skills.clear();
+  update();
+}
+
+// ---------------- Rendering: KPIs ----------------
+function renderKpis(list) {
+  const skills = new Set();
+  list.forEach(p => SKILL_CATS.forEach(c => p.skills[c.key].forEach(s => skills.add(c.key + s.toLowerCase()))));
+  const withPrio = list.filter(p => p.priorities.length).length;
+  const fte = list.reduce((sum, p) => sum + p.alloc.filter(a => CORE.includes(a.area)).reduce((s, a) => s + a.pct, 0), 0) / 100;
+  const total = people.length;
+  $('kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-value">${list.length}${list.length !== total ? ` <small>of ${total}</small>` : ''}</div><div class="kpi-label">People</div></div>
+    <div class="kpi"><div class="kpi-value">${skills.size}</div><div class="kpi-label">Distinct skills listed</div></div>
+    <div class="kpi"><div class="kpi-value">${withPrio}</div><div class="kpi-label">With 2026 priorities recorded</div></div>
+    <div class="kpi"><div class="kpi-value">${fmt(fte)}</div><div class="kpi-label">Full-time equivalents on the five pillars</div></div>`;
+}
+
+// ---------------- Rendering: charts ----------------
+function barChart(rows, opts) {
+  if (!rows.length) return `<div class="chart-empty">Nothing to show for the current filters.</div>`;
+  const max = Math.max(...rows.map(r => r.value));
+  return `<div class="bars">` + rows.map(r => `
+    <button class="bar-row ${r.on ? 'on' : ''}" ${r.action} aria-pressed="${r.on ? 'true' : 'false'}" data-tip="${esc(r.tip)}">
+      <span class="bar-label">${esc(r.label)}</span>
+      <span class="bar-track">
+        <span class="bar-fill" style="width:calc((100% - 40px) * ${(r.value / max).toFixed(4)});background:${r.color || 'var(--bar)'}"></span>
+        <span class="bar-val">${opts.format ? opts.format(r.value) : r.value}</span>
+      </span>
+    </button>`).join('') + `</div>`;
+}
+
+function renderSkillCharts(list) {
+  const cat = state.skillCat;
+  const counts = new Map();
+  list.forEach(p => p.skills[cat].forEach(s => {
+    const k = s.toLowerCase();
+    if (!counts.has(k)) counts.set(k, { skill: s, n: 0 });
+    counts.get(k).n++;
+  }));
+  const top = [...counts.values()].sort((a, b) => b.n - a.n || a.skill.localeCompare(b.skill)).slice(0, 12);
+  const skillRows = top.map(t => {
+    const key = skillKey(cat, t.skill);
+    return {
+      label: t.skill, value: t.n, on: state.skills.has(key),
+      action: `data-pick-skill="${esc(key)}" data-skill-name="${esc(t.skill)}"`,
+      tip: `${t.skill}: ${t.n} ${t.n === 1 ? 'person' : 'people'}. Click to ${state.skills.has(key) ? 'remove the filter' : 'filter'}.`
+    };
+  });
+
+  const areaCounts = {};
+  list.forEach(p => p.workAreas.forEach(a => { areaCounts[a] = (areaCounts[a] || 0) + 1; }));
+  const areaRows = Object.entries(areaCounts)
+    .sort((a, b) => (CORE.includes(b[0]) - CORE.includes(a[0])) || b[1] - a[1])
+    .slice(0, 12)
+    .map(([a, n]) => ({
+      label: a, value: n, color: areaColor(a), on: state.areas.has(a),
+      action: `data-pick-area="${esc(a)}"`,
+      tip: `${a}: ${n} ${n === 1 ? 'person spends' : 'people spend'} time here. Click to ${state.areas.has(a) ? 'remove the filter' : 'filter'}.`
+    }));
+
+  $('charts').innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <div><div class="panel-title">Most common skills</div><div class="panel-sub">Number of people listing each skill</div></div>
+        <div class="seg" role="group" aria-label="Skill type">
+          ${SKILL_CATS.map(c => `<button data-cat="${c.key}" aria-pressed="${c.key === cat}">${c.label}</button>`).join('')}
+        </div>
+      </div>
+      <div class="panel-body">${barChart(skillRows, {})}<p class="chart-note">Click a bar to show only people with that skill.</p></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><div class="panel-title">People by pillar or team</div><div class="panel-sub">Anyone with time allocated there</div></div></div>
+      <div class="panel-body">${barChart(areaRows, {})}<p class="chart-note">People with time in more than one area are counted in each.</p></div>
+    </div>`;
+}
+
+function renderPriorityCharts(list) {
+  const fte = {};
+  list.forEach(p => p.alloc.forEach(a => {
+    const key = INSTITUTIONAL.has(a.area) ? (a.area === 'Learning' ? 'Learning' : (/DEI|Sustainab/.test(a.area) ? 'DEI and sustainability' : 'Other institutional')) : a.area;
+    fte[key] = (fte[key] || 0) + a.pct / 100;
+  }));
+  const instKeys = new Set(['Learning', 'DEI and sustainability', 'Other institutional']);
+  const rows = Object.entries(fte)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 14)
+    .map(([a, v]) => ({
+      label: a, value: v, on: state.areas.has(a),
+      color: instKeys.has(a) ? 'var(--institutional)' : areaColor(a),
+      action: instKeys.has(a) ? 'data-static="1"' : `data-pick-area="${esc(a)}"`,
+      tip: `${a}: ${fmt(v)} full-time equivalents` + (instKeys.has(a) ? '' : `. Click to ${state.areas.has(a) ? 'remove the filter' : 'filter'}.`)
+    }));
+
+  const recorded = list.filter(p => p.alloc.length);
+  const counts = { one: 0, two: 0, three: 0 };
+  recorded.forEach(p => { const n = p.workAreas.length; if (n <= 1) counts.one++; else if (n === 2) counts.two++; else counts.three++; });
+  const spreadRows = [
+    { label: 'One pillar or team', value: counts.one },
+    { label: 'Two', value: counts.two },
+    { label: 'Three or more', value: counts.three }
+  ].map(r => ({ ...r, action: 'data-static="1"', tip: `${r.label}: ${r.value} people` }));
+
+  $('charts').innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><div><div class="panel-title">Where time goes</div><div class="panel-sub">Full-time equivalents, from each person's time split</div></div></div>
+      <div class="panel-body">${barChart(rows, { format: fmt })}<p class="chart-note">One full-time equivalent is one person at 100%. Grey bars are learning, DEI and other institutional time.</p></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><div class="panel-title">How many areas each person works across</div><div class="panel-sub">${recorded.length} people with a time split recorded</div></div></div>
+      <div class="panel-body">${barChart(spreadRows, {})}<p class="chart-note">Counts pillars and programme teams only, not learning or DEI time.</p></div>
+    </div>`;
+}
+
+// ---------------- Rendering: table ----------------
+function list3(items, t, n = 3) {
+  if (!items.length) return '<span class="muted">Not listed</span>';
+  const shown = items.slice(0, n).map(s => hl(s, t)).join(', ');
+  return shown + (items.length > n ? ` <span class="plus">+${items.length - n}</span>` : '');
+}
+function areaCell(a) {
+  if (!a) return '<span class="muted">Not recorded</span>';
+  return `<span class="area-cell"><span class="swatch" style="background:${areaColor(a)}"></span>${esc(a)}</span>`;
+}
+function stackBar(alloc) {
+  return `<div class="stack">` + alloc.map(a =>
+    `<span style="flex:${a.pct};background:${areaColor(a.area)}" data-tip="${esc(a.area)}: ${a.pct}%"></span>`).join('') + `</div>`;
+}
+function sortHead(key, label) {
+  const on = state.sort.key === key;
+  return `<button data-sort="${key}">${label}${on ? `<span class="arrow">${state.sort.dir > 0 ? '▲' : '▼'}</span>` : ''}</button>`;
+}
+
+function renderTable(list) {
+  const t = terms();
+  $('tableTitle').textContent = state.view === 'skills' ? 'People and skills' : 'People and 2026 priorities';
+  $('tableSub').textContent = 'Click a row to see the full profile';
+  if (!list.length) {
+    $('tableWrap').innerHTML = `<div class="empty"><strong>No one matches these filters</strong>Remove a filter or change the search.</div>`;
+    $('tableFoot').textContent = '';
+    return;
+  }
+  let head, rows;
+  if (state.view === 'skills') {
+    head = `<tr><th>${sortHead('name', 'Name')}</th><th>${sortHead('area', 'Main pillar or team')}</th><th>Domain</th><th>Technologies</th><th>Functional</th><th>Geographic scope</th></tr>`;
+    rows = list.map(p => `<tr tabindex="0" data-open="${esc(p.id)}">
+      <td class="name-cell">${hl(p.name, t)}</td>
+      <td>${areaCell(p.mainArea)}</td>
+      <td>${list3(p.skills.domain, t)}</td>
+      <td>${list3(p.skills.technology, t)}</td>
+      <td>${list3(p.skills.functional, t)}</td>
+      <td>${list3(p.scopes, t, 2)}</td></tr>`).join('');
+  } else {
+    head = `<tr><th>${sortHead('name', 'Name')}</th><th>${sortHead('area', 'Main pillar or team')}</th><th>Time split</th><th>Key priorities for 2026</th></tr>`;
+    rows = list.map(p => {
+      const split = p.alloc.length
+        ? stackBar(p.alloc) + `<div class="stack-caption">${p.alloc.slice(0, 3).map(a => `${esc(a.area)} ${a.pct}%`).join(', ')}${p.alloc.length > 3 ? ` <span class="plus">+${p.alloc.length - 3}</span>` : ''}</div>`
+        : '<span class="muted">Not recorded</span>';
+      const prio = p.priorities.length
+        ? `<ul class="prio-list">${p.priorities.slice(0, 2).map(x => `<li>${hl(x, t)}</li>`).join('')}</ul>${p.priorities.length > 2 ? `<span class="plus">+${p.priorities.length - 2} more</span>` : ''}`
+        : '<span class="muted">Not recorded</span>';
+      return `<tr tabindex="0" data-open="${esc(p.id)}">
+        <td class="name-cell">${hl(p.name, t)}</td><td>${areaCell(p.mainArea)}</td><td>${split}</td><td>${prio}</td></tr>`;
+    }).join('');
+  }
+  $('tableWrap').innerHTML = `<table><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+  $('tableFoot').textContent = `Showing ${list.length} of ${people.length} people`;
+}
+
+// ---------------- Drawer ----------------
+function openDrawer(id) {
+  const p = people.find(x => x.id === id);
+  if (!p) return;
+  state.openId = id;
+  const skillsHtml = SKILL_CATS.filter(c => p.skills[c.key].length).map(c => `
+    <div class="skill-group"><h4>${c.label}</h4><div class="tags">
+      ${p.skills[c.key].map(s => `<button class="tag tag-btn" data-add-skill="${esc(skillKey(c.key, s))}" data-cat="${c.key}" data-skill-name="${esc(s)}" data-tip="Show everyone with this skill">${esc(s)}</button>`).join('')}
+    </div></div>`).join('') || '<p class="muted">No skills listed.</p>';
+  const geo = [...p.scopes, ...p.geoDetail];
+  $('drawer').innerHTML = `
+    <div class="drawer-head">
+      <div>
+        <h2 id="drawerName">${esc(p.name)}</h2>
+        <div class="meta">${p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : ''}${p.mainArea ? `<span>${areaCell(p.mainArea)}</span>` : ''}</div>
+      </div>
+      <button class="close-btn" id="closeDrawer" aria-label="Close profile">×</button>
+    </div>
+    <div class="drawer-body">
+      <div class="d-sec"><div class="d-title">Time split</div>
+        ${p.alloc.length ? stackBar(p.alloc) + `<div class="alloc-list">${p.alloc.map(a => `<span class="swatch" style="background:${areaColor(a.area)}"></span><span>${esc(a.area)}</span><span class="pct">${a.pct}%</span>`).join('')}</div>` : '<p class="muted">Not recorded.</p>'}
+      </div>
+      <div class="d-sec"><div class="d-title">Key priorities for 2026</div>
+        ${p.priorities.length ? `<ul class="prio-list">${p.priorities.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted">Not recorded.</p>'}
+      </div>
+      <div class="d-sec"><div class="d-title">Skills</div>${skillsHtml}</div>
+      ${geo.length ? `<div class="d-sec"><div class="d-title">Geographic expertise</div><div class="tags">${geo.map(g => `<span class="tag">${esc(g)}</span>`).join('')}</div></div>` : ''}
+      ${p.quals.length ? `<div class="d-sec"><div class="d-title">Qualifications</div>${p.quals.map(q => `<p>${esc(q)}</p>`).join('')}</div>` : ''}
+    </div>`;
+  $('drawer').classList.add('open');
+  $('drawer').setAttribute('aria-hidden', 'false');
+  $('scrim').classList.add('open');
+  $('closeDrawer').focus();
+}
+function closeDrawer() {
+  if (!state.openId) return;
+  const id = state.openId;
+  state.openId = null;
+  $('drawer').classList.remove('open');
+  $('drawer').setAttribute('aria-hidden', 'true');
+  $('scrim').classList.remove('open');
+  const row = document.querySelector(`tr[data-open="${CSS.escape(id)}"]`);
+  if (row) row.focus();
+}
+
+// ---------------- CSV export ----------------
+function downloadCsv() {
+  const list = filtered();
+  const cols = ['Name', 'Email', 'Main pillar or team', 'Time split', 'Key priorities 2026', ...SKILL_CATS.map(c => c.label + ' expertise'), 'Geographic expertise', 'Qualifications'];
+  const cell = v => `"${String(v).replace(/"/g, '""')}"`;
+  const lines = [cols.map(cell).join(',')].concat(list.map(p => [
+    p.name, p.email, p.mainArea, p.alloc.map(a => `${a.area} ${a.pct}%`).join('; '), p.priorities.join('; '),
+    ...SKILL_CATS.map(c => p.skills[c.key].join('; ')), [...p.scopes, ...p.geoDetail].join('; '), p.quals.join('; ')
+  ].map(cell).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `energy-program-${state.view}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---------------- Update cycle ----------------
+function update() {
+  const list = filtered();
+  renderFilters();
+  renderActive();
+  renderKpis(list);
+  if (state.view === 'skills') renderSkillCharts(list); else renderPriorityCharts(list);
+  renderTable(list);
+}
+
+function toggleSkill(key, cat, name) {
+  if (state.skills.has(key)) state.skills.delete(key);
+  else state.skills.set(key, { cat, skill: name });
+}
+
+// ---------------- Events ----------------
+let searchTimer;
+$('search').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { state.q = e.target.value; update(); }, 120);
+});
+
+document.querySelectorAll('.view-btn').forEach(b => b.addEventListener('click', () => {
+  state.view = b.dataset.view;
+  document.querySelectorAll('.view-btn').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  update();
+}));
+
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.area) { t.checked ? state.areas.add(t.dataset.area) : state.areas.delete(t.dataset.area); update(); }
+  else if (t.dataset.scope) { t.checked ? state.scopes.add(t.dataset.scope) : state.scopes.delete(t.dataset.scope); update(); }
+  else if (t.dataset.skill) { state.skills.delete(t.dataset.skill); update(); }
+});
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('button, tr[data-open]');
+  if (!el) {
+    if (e.target === $('scrim')) closeDrawer();
+    return;
+  }
+  const d = el.dataset;
+  if (d.reset) { state[d.reset].clear(); update(); }
+  else if (el.id === 'moreAreas') { state.showAllAreas = !state.showAllAreas; renderFilters(); }
+  else if (d.cat && !d.addSkill) { state.skillCat = d.cat; update(); }
+  else if (d.pickSkill) { toggleSkill(d.pickSkill, state.skillCat, d.skillName); update(); }
+  else if (d.pickArea) { state.areas.has(d.pickArea) ? state.areas.delete(d.pickArea) : state.areas.add(d.pickArea); update(); }
+  else if (d.addSkill) {
+    if (!state.skills.has(d.addSkill)) state.skills.set(d.addSkill, { cat: d.cat, skill: d.skillName });
+    closeDrawer(); hideTip(); update();
+  }
+  else if (d.sort) {
+    state.sort = state.sort.key === d.sort ? { key: d.sort, dir: -state.sort.dir } : { key: d.sort, dir: 1 };
+    renderTable(filtered());
+  }
+  else if (d.open) openDrawer(d.open);
+  else if (el.id === 'closeDrawer') closeDrawer();
+  else if (el.id === 'downloadBtn') downloadCsv();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDrawer();
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-open]')) { e.preventDefault(); openDrawer(e.target.dataset.open); }
+});
+
+// Tooltip
+const tip = $('tip');
+function hideTip() { tip.classList.remove('show'); }
+document.addEventListener('mousemove', e => {
+  const el = e.target.closest('[data-tip]');
+  if (!el) return hideTip();
+  tip.textContent = el.dataset.tip;
+  tip.classList.add('show');
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = e.clientX + 12, y = e.clientY + 14;
+  if (x + w > innerWidth - 8) x = e.clientX - w - 12;
+  if (y + h > innerHeight - 8) y = e.clientY - h - 12;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+});
+document.addEventListener('scroll', hideTip, true);
+
+// ---------------- Load data ----------------
+function setStatus(kind, text) {
+  $('statusDot').className = 'status-dot ' + kind;
+  $('statusText').textContent = text;
+}
+let loaded = false;
+const loadTimeout = setTimeout(() => {
+  if (!loaded) {
+    setStatus('err', 'Data not loading');
+    $('tableWrap').innerHTML = `<div class="empty"><strong>The team data hasn't loaded</strong>Check your internet connection. On the office network, firebaseio.com may be blocked.</div>`;
+  }
+}, 12000);
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  firebase.database().ref('/').on('value', snap => {
+    loaded = true;
+    clearTimeout(loadTimeout);
+    people = normalise(snap.val());
+    const now = new Date();
+    setStatus('live', `${people.length} people, updated ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+    update();
+    if (state.openId) openDrawer(state.openId);
+  }, err => {
+    setStatus('err', 'Could not load data');
+    $('tableWrap').innerHTML = `<div class="empty"><strong>The team data couldn't be loaded</strong>${esc(err && err.message)}</div>`;
+  });
+} catch (err) {
+  setStatus('err', 'Could not load data');
+  $('tableWrap').innerHTML = `<div class="empty"><strong>The data service didn't load</strong>The Firebase script may be blocked on this network.</div>`;
+}
+</script>
+</body>
+</html>
